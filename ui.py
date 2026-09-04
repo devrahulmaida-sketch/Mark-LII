@@ -2535,6 +2535,7 @@ class MainWindow(QMainWindow):
         self._cam_frame_sig.connect(self._on_cam_frame)
         self._clipboard_sig.connect(self._show_clipboard_panel)
         self._cam_stop = threading.Event()
+        self._ext_cam_provider = None  # callable -> bytes or (bytes, mime) or None
 
         # Camera preview overlay (child of central widget, positioned in resizeEvent)
         self._cam_preview = _CameraPreview(self.centralWidget())
@@ -2588,6 +2589,10 @@ class MainWindow(QMainWindow):
                               Qt.TransformationMode.SmoothTransformation)
                 )
 
+    def set_external_camera_provider(self, fn) -> None:
+        """Set callable that returns latest camera frame (bytes or (bytes, mime)) or None. Thread-safe."""
+        self._ext_cam_provider = fn
+
     def start_camera_stream(self) -> None:
         self._cam_stop.clear()
         self._cam_stream_sig.emit(True)
@@ -2597,7 +2602,6 @@ class MainWindow(QMainWindow):
     def _cam_loop(self) -> None:
         try:
             import cv2
-            # Reuse camera index detected by screen_processor (cached in api_keys.json)
             cam_idx = 0
             try:
                 import json as _j
@@ -2609,20 +2613,55 @@ class MainWindow(QMainWindow):
                 backend = cv2.CAP_DSHOW if _OS == "Windows" else cv2.CAP_ANY
             except AttributeError:
                 backend = 0
-            cap = cv2.VideoCapture(cam_idx, backend)
-            if not cap.isOpened():
-                cap = cv2.VideoCapture(0)
-            if not cap.isOpened():
-                return
-            # warm-up frames
-            for _ in range(5):
-                cap.read()
-            while not self._cam_stop.wait(0.033) and cap.isOpened():
-                ret, frame = cap.read()
-                if ret and frame is not None:
-                    _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 65])
-                    self._cam_frame_sig.emit(buf.tobytes())
-            cap.release()
+            cap = None
+            try:
+                cap = cv2.VideoCapture(cam_idx, backend)
+                if not cap.isOpened():
+                    cap = cv2.VideoCapture(0)
+                if cap.isOpened():
+                    for _ in range(5):
+                        cap.read()
+                else:
+                    cap = None
+            except Exception:
+                cap = None
+
+            while not self._cam_stop.is_set():
+                ext_data = None
+                if self._ext_cam_provider:
+                    try:
+                        ext = self._ext_cam_provider()
+                        if ext:
+                            if isinstance(ext, tuple):
+                                ext_data = ext[0]
+                            else:
+                                ext_data = ext
+                    except Exception:
+                        ext_data = None
+                if ext_data:
+                    self._cam_frame_sig.emit(ext_data)
+                    if self._cam_stop.wait(0.08):
+                        break
+                    continue
+
+                if cap is not None and cap.isOpened():
+                    ret, frame = cap.read()
+                    if ret and frame is not None:
+                        _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 65])
+                        self._cam_frame_sig.emit(buf.tobytes())
+                else:
+                    if self._cam_stop.wait(0.1):
+                        break
+                    continue
+
+                if self._cam_stop.wait(0.033):
+                    break
+
+            if cap is not None:
+                try:
+                    cap.release()
+                except Exception:
+                    pass
         except Exception as e:
             print(f"[Camera] Stream error: {e}")
         finally:
@@ -4131,6 +4170,13 @@ class JarvisUI:
     def show_camera_frame(self, img_bytes: bytes):
         """Thread-safe: show a webcam frame in the small overlay (screen captures)."""
         self._win._camera_sig.emit(img_bytes)
+
+    def set_external_camera_provider(self, fn) -> None:
+        """Thread-safe: set phone camera provider for big HUD."""
+        try:
+            self._win.set_external_camera_provider(fn)
+        except Exception:
+            pass
 
     def start_camera_stream(self) -> None:
         """Thread-safe: start live camera feed in the full HUD area."""
