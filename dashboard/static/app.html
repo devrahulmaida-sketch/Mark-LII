@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>JARVIS Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>JARVIS Dashboard — Fixed Mic</title>
   <script src="/static/crypto.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -17,18 +17,19 @@
       --muted:   #5e6a7e;
       --green:   #22c55e;
       --gdim:    rgba(34,197,94,0.14);
+      --red:     #ef4444;
+      --rdim:    rgba(239,68,68,0.12);
     }
     html, body {
       height: 100%; background: var(--bg); color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       display: flex; flex-direction: column; overflow: hidden;
     }
-
-    /* ── HEADER ── */
     header {
       flex-shrink: 0; display: flex; align-items: center; gap: 10px;
       padding: 12px 16px; border-bottom: 1px solid var(--border);
       background: rgba(7,9,15,0.95);
+      flex-wrap: wrap;
     }
     .logo { font-size: 15px; font-weight: 700; letter-spacing: 6px; }
     .logo em { color: var(--accent); font-style: normal; }
@@ -50,21 +51,24 @@
     .enc-badge.on  { display: block; background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.25); color: var(--green); }
     .enc-badge.off { display: block; background: rgba(255,100,100,0.08); border: 1px solid rgba(255,100,100,0.2); color: #f87171; }
     .url { font-size: 10px; font-family: monospace; color: var(--muted); padding: 4px 9px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
-
-    /* ── FEED ── */
     main { flex: 1; overflow-y: auto; padding: 14px 16px 8px; display: flex; flex-direction: column; gap: 10px; }
     main::-webkit-scrollbar { width: 3px; }
     main::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-    .msg { max-width: 82%; padding: 10px 14px; border-radius: 14px; font-size: 14px; line-height: 1.55; animation: pop 0.18s ease; }
+    .msg { max-width: 82%; padding: 10px 14px; border-radius: 14px; font-size: 14px; line-height: 1.55; animation: pop 0.18s ease; word-break: break-word; }
     @keyframes pop { from { opacity:0; transform:translateY(4px); } }
     .msg-j   { align-self:flex-start; background:var(--adim);   border:1px solid rgba(99,102,241,0.18); border-bottom-left-radius:4px; }
     .msg-u   { align-self:flex-end;   background:var(--surface); border:1px solid var(--border);        border-bottom-right-radius:4px; }
-    .msg-sys { align-self:center; font-size:11px; color:var(--muted); padding:2px 0; background:transparent; border:none; letter-spacing:0.3px; }
+    .msg-sys { align-self:center; font-size:11px; color:var(--muted); padding:2px 0; background:transparent; border:none; letter-spacing:0.3px; text-align:center; }
     .lbl { font-size:9px; font-weight:700; letter-spacing:2px; text-transform:uppercase; opacity:0.45; margin-bottom:4px; }
     .msg-j .lbl { color:var(--accent); }
     .msg-u .lbl { color:var(--muted); text-align:right; }
-
-    /* ── FILE CARD ── */
+    .msg-interim {
+      align-self:flex-end; background: rgba(99,102,241,0.08); border:1px dashed rgba(99,102,241,0.30);
+      border-radius: 14px; border-bottom-right-radius:4px; padding:8px 14px;
+      font-size:13px; color:#a5b4fc; font-style:italic; max-width:82%;
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:0.9} 50%{opacity:0.55} }
     .msg-file {
       align-self: flex-end;
       background: var(--surface); border: 1px solid var(--border);
@@ -84,10 +88,9 @@
     .fc-status.err  { color: #f87171; }
     .fc-dl { display:block; margin-top:6px; font-size:11px; color:var(--accent); text-decoration:none; font-weight:600; }
     .fc-dl:hover { opacity: 0.8; }
-
     /* ── FOOTER ── */
-    footer { flex-shrink:0; padding:10px 14px; border-top:1px solid var(--border); background:rgba(7,9,15,0.95); display:flex; gap:8px; align-items:center; }
-    #inp { flex:1; padding:11px 14px; background:var(--surface); border:1.5px solid var(--border); border-radius:12px; color:var(--text); font-size:14px; outline:none; transition:border-color 0.15s; }
+    footer { flex-shrink:0; padding:10px 14px; border-top:1px solid var(--border); background:rgba(7,9,15,0.98); display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    #inp { flex:1; min-width:120px; padding:11px 14px; background:var(--surface); border:1.5px solid var(--border); border-radius:12px; color:var(--text); font-size:14px; outline:none; transition:border-color 0.15s; }
     #inp:focus { border-color: var(--accent); }
     #inp::placeholder { color: var(--muted); }
     .btn { padding:11px 15px; border:none; border-radius:12px; font-size:11px; font-weight:700; letter-spacing:1.5px; cursor:pointer; transition:opacity 0.15s,transform 0.1s; }
@@ -104,13 +107,11 @@
     }
     .btn-attach:hover  { opacity: 0.82; border-color: var(--accent); color: var(--accent); }
     .btn-attach:active { transform: scale(0.96); }
-
-    /* ── MIC BUTTON ── */
+    /* ── MIC BUTTONS ── */
     #mic-btn {
       background: var(--surface); border: 1px solid var(--border); color: var(--muted);
       padding: 11px 13px; font-size: 16px; line-height: 1; border-radius: 12px;
-      cursor: pointer; transition: opacity 0.15s, transform 0.1s, background 0.2s, border-color 0.2s;
-      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
     }
     #mic-btn:hover  { opacity: 0.82; border-color: var(--accent); color: var(--accent); }
     #mic-btn:active { transform: scale(0.96); }
@@ -118,9 +119,36 @@
       background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.45); color: #ef4444;
       animation: mic-pulse 1s ease-in-out infinite;
     }
-    #mic-btn.unsupported { opacity: 0.3; cursor: not-allowed; }
+    #avail-btn {
+      background: var(--surface); border: 1px solid var(--border); color: var(--muted);
+      padding: 10px 14px; font-size: 12px; font-weight: 800; letter-spacing: 0.8px; line-height: 1; border-radius: 12px;
+      cursor: pointer; transition: all 0.22s; display: flex; align-items: center; gap:6px; flex-shrink: 0;
+      white-space: nowrap;
+    }
+    #avail-btn:hover { border-color: var(--green); color: var(--green); opacity:0.92; }
+    #avail-btn.on {
+      background: var(--gdim); border-color: rgba(34,197,94,0.45); color: var(--green);
+      box-shadow: 0 0 12px rgba(34,197,94,0.22);
+      animation: avail-pulse 1.6s ease-in-out infinite;
+    }
+    #avail-btn.on:hover { background: rgba(34,197,94,0.18); }
+    @keyframes avail-pulse { 0%,100%{box-shadow:0 0 10px rgba(34,197,94,0.22)} 50%{box-shadow:0 0 18px rgba(34,197,94,0.38)} }
     @keyframes mic-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.65;transform:scale(0.97)} }
-
+    #lang-sel {
+      background: var(--surface); border:1px solid var(--border); color: var(--muted);
+      padding: 8px 8px; border-radius: 9px; font-size: 11px; font-weight:700;
+      outline:none; flex-shrink:0;
+    }
+    #lang-sel:focus { border-color: var(--accent); color: var(--text); }
+    /* ── AVAIL STATUS BAR ── */
+    #avail-bar {
+      display:none; align-items:center; gap:10px; padding:8px 14px;
+      background: rgba(34,197,94,0.08); border-bottom:1px solid rgba(34,197,94,0.18);
+      font-size:12px; color: var(--green); font-weight:600; letter-spacing:0.3px;
+    }
+    #avail-bar.show { display:flex; }
+    #avail-bar .dot2 { width:8px; height:8px; border-radius:50%; background:var(--green); animation: blink 1s infinite; }
+    #avail-bar .avail-hint { color: var(--muted); font-weight:400; font-size:11px; margin-left:auto; }
     /* ── TOAST ── */
     #toast {
       position:fixed; top:66px; left:50%; transform:translateX(-50%) translateY(-8px);
@@ -128,9 +156,17 @@
       color:var(--green); font-size:12px; font-weight:700; letter-spacing:1px;
       padding:7px 18px; border-radius:99px;
       opacity:0; transition:opacity 0.22s,transform 0.22s;
-      pointer-events:none; white-space:nowrap;
+      pointer-events:none; white-space:nowrap; z-index:99;
     }
     #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+    #toast.err { background:rgba(239,68,68,0.14); border-color:rgba(239,68,68,0.35); color:#f87171; }
+    /* responsive */
+    @media (max-width: 520px) {
+      footer { gap:6px; }
+      #avail-btn span.txt { display:none; }
+      #avail-btn { padding:11px 12px; font-size:14px; }
+      .url { display:none; }
+    }
   </style>
 </head>
 <body>
@@ -140,14 +176,22 @@
     <div class="pill" id="pill"><span class="dot"></span><span id="st">Connecting</span></div>
     <div class="enc-badge" id="enc">AES-256</div>
     <div class="spacer"></div>
+    <select id="lang-sel" title="Mic language">
+      <option value="hi-IN">🇮🇳 हिंदी + English</option>
+      <option value="en-IN">🇮🇳 English (India)</option>
+      <option value="en-US">🇺🇸 English (US)</option>
+      <option value="auto">🌐 Auto</option>
+    </select>
     <div class="url">__IP__:__PORT__</div>
   </header>
+  <div id="avail-bar"><span class="dot2"></span> <span id="avail-text">Available mic ON — bolo, auto bhejunga</span> <span class="avail-hint">tap Available to stop</span></div>
   <main id="feed"></main>
   <footer>
     <input id="inp" placeholder="Send a command to JARVIS…" autocomplete="off">
     <label class="btn-attach" for="file-inp" title="Send file">📎</label>
     <input type="file" id="file-inp" multiple accept="*/*" style="display:none">
-    <button id="mic-btn" onclick="doMic()" title="Voice command">🎤</button>
+    <button id="avail-btn" onclick="toggleAvailable()" title="Available mode — ek baar ON, baar-baar dabane ki zarurat nahi. Bolo → auto STT → auto send → reply, repeat."><span>⚪</span><span class="txt">Available</span></button>
+    <button id="mic-btn" onclick="doMic()" title="Live PCM mic — direct Gemini Live audio (hold-screen ON)">🎤</button>
     <button class="btn btn-wake" id="wake" onclick="doWake()">WAKE</button>
     <button class="btn btn-send" onclick="doSend()">SEND</button>
   </footer>
@@ -156,60 +200,65 @@
     // ── Auth — bearer token ───────────────────────────────────────────────────
     const _authToken  = sessionStorage.getItem('jarvis_token');
     const _sessionKey = sessionStorage.getItem('jarvis_key');
-
-    if (!_authToken) {
-      location.replace('/login');
-    }
-
+    if (!_authToken) { location.replace('/login'); }
     function _authHeader() { return { 'Authorization': `Bearer ${_authToken}` }; }
     function _authFetch(url, opts = {}) {
       opts.headers = Object.assign({}, opts.headers, _authHeader());
       return fetch(url, opts);
     }
-
-    // ── AES-256-CBC encryption (CryptoJS) ────────────────────────────────────
+    // ── AES-256-CBC ───────────────────────────────────────────────────────────
     const _AES_SALT = 'JARVIS-DASHBOARD-v1';
     let _aesKey = null;
-
     function _initCrypto(key) {
       if (typeof CryptoJS === 'undefined') return false;
       _aesKey = CryptoJS.SHA256(key + _AES_SALT);
       return true;
     }
-
     function _encrypt(plaintext) {
       if (!_aesKey || typeof CryptoJS === 'undefined') return null;
       try {
         const iv  = CryptoJS.lib.WordArray.random(16);
-        const enc = CryptoJS.AES.encrypt(
-          CryptoJS.enc.Utf8.parse(plaintext), _aesKey,
-          { iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 }
-        );
+        const enc = CryptoJS.AES.encrypt(CryptoJS.enc.Utf8.parse(plaintext), _aesKey, { iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 });
         const ivHex = iv.toString(CryptoJS.enc.Hex);
         const ctHex = enc.ciphertext.toString(CryptoJS.enc.Hex);
         const hex   = ivHex + ctHex;
         const bytes = new Uint8Array(hex.length / 2);
-        for (let i = 0; i < bytes.length; i++)
-          bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+        for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
         return btoa(String.fromCharCode(...bytes));
       } catch { return null; }
     }
-
     const _encReady = _sessionKey ? _initCrypto(_sessionKey) : false;
     const encBadge  = document.getElementById('enc');
     if (_encReady) { encBadge.className = 'enc-badge on'; }
     else           { encBadge.className = 'enc-badge off'; encBadge.textContent = 'NO ENC'; }
 
-    // ── WebSocket ─────────────────────────────────────────────────────────────
+    // ── Language selector (persistent) ────────────────────────────────────────
+    const langSel = document.getElementById('lang-sel');
+    const SAVED_LANG = localStorage.getItem('jarvis_avail_lang') || 'hi-IN';
+    langSel.value = ['hi-IN','en-IN','en-US','auto'].includes(SAVED_LANG) ? SAVED_LANG : 'hi-IN';
+    langSel.addEventListener('change', () => {
+      localStorage.setItem('jarvis_avail_lang', langSel.value);
+      if (_availActive) {
+        sys('Language → ' + langSel.options[langSel.selectedIndex].text + ' — mic restart ho raha hai…');
+        _restartAvailable();
+      } else {
+        toast('Language: ' + langSel.options[langSel.selectedIndex].text);
+      }
+    });
+    function _availLang() {
+      const v = langSel.value;
+      if (v === 'auto') return navigator.language || 'hi-IN';
+      return v;
+    }
+
+    // ── WebSocket (feed) ──────────────────────────────────────────────────────
     const feed  = document.getElementById('feed');
     const pill  = document.getElementById('pill');
     const stTxt = document.getElementById('st');
     const wake  = document.getElementById('wake');
-
     const _wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
     const _wsUrl   = `${_wsProto}://${location.host}/ws?token=${encodeURIComponent(_authToken)}`;
     const ws       = new WebSocket(_wsUrl);
-
     ws.onopen    = () => { sys('Remote session active.'); toast('Connected to JARVIS'); };
     ws.onclose   = () => sys('Connection lost — refresh to reconnect.');
     ws.onerror   = () => sys('Connection error.');
@@ -221,339 +270,534 @@
       if (m.type === 'sys')           sys(m.text);
       if (m.type === 'file_received') _onFileReceived(m);
     };
-
     function setStatus(s) {
-      if (s === 'active') {
-        pill.className = 'pill on'; stTxt.textContent = 'Active'; wake.classList.remove('show');
-      } else {
-        pill.className = 'pill'; stTxt.textContent = 'Sleeping'; wake.classList.add('show');
-      }
+      if (s === 'active') { pill.className = 'pill on'; stTxt.textContent = 'Active'; wake.classList.remove('show'); }
+      else { pill.className = 'pill'; stTxt.textContent = 'Sleeping'; wake.classList.add('show'); }
     }
-
     function append(speaker, text) {
+      _removeInterim();
       const d = document.createElement('div');
-      if (speaker === 'jarvis') {
-        d.className = 'msg msg-j';
-        d.innerHTML = `<div class="lbl">Jarvis</div>${esc(text)}`;
-      } else {
-        d.className = 'msg msg-u';
-        d.innerHTML = `<div class="lbl">You</div>${esc(text)}`;
-      }
-      feed.appendChild(d);
-      feed.scrollTop = feed.scrollHeight;
-    }
-
-    function sys(text) {
-      const d = document.createElement('div');
-      d.className = 'msg msg-sys'; d.textContent = text;
+      if (speaker === 'jarvis') { d.className = 'msg msg-j'; d.innerHTML = `<div class="lbl">Jarvis</div>${esc(text)}`; }
+      else { d.className = 'msg msg-u'; d.innerHTML = `<div class="lbl">You</div>${esc(text)}`; }
       feed.appendChild(d); feed.scrollTop = feed.scrollHeight;
     }
-
-    function esc(s) {
-      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    function sys(text) {
+      _removeInterim();
+      const d = document.createElement('div'); d.className = 'msg msg-sys'; d.textContent = text;
+      feed.appendChild(d); feed.scrollTop = feed.scrollHeight;
     }
-
-    // ── File helpers ──────────────────────────────────────────────────────────
+    function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
     function _fileIcon(name) {
       const ext = (name.split('.').pop() || '').toLowerCase();
       if (['jpg','jpeg','png','gif','webp','heic','heif','avif','bmp','svg'].includes(ext)) return '🖼️';
-      if (['mp4','mov','avi','mkv','webm','m4v','3gp'].includes(ext))                       return '🎬';
-      if (['mp3','m4a','wav','flac','aac','ogg','opus'].includes(ext))                      return '🎵';
-      if (['pdf'].includes(ext))                                                             return '📋';
-      if (['doc','docx','txt','md','rtf','odt'].includes(ext))                              return '📝';
-      if (['xls','xlsx','csv','ods'].includes(ext))                                         return '📊';
-      if (['ppt','pptx','odp'].includes(ext))                                               return '📑';
-      if (['zip','rar','7z','tar','gz','bz2','xz'].includes(ext))                          return '📦';
-      if (['apk','exe','dmg','deb','rpm','msi'].includes(ext))                              return '⚙️';
+      if (['mp4','mov','avi','mkv','webm','m4v','3gp'].includes(ext)) return '🎬';
+      if (['mp3','m4a','wav','flac','aac','ogg','opus'].includes(ext)) return '🎵';
+      if (['pdf'].includes(ext)) return '📋';
+      if (['doc','docx','txt','md','rtf','odt'].includes(ext)) return '📝';
+      if (['xls','xlsx','csv','ods'].includes(ext)) return '📊';
+      if (['ppt','pptx','odp'].includes(ext)) return '📑';
+      if (['zip','rar','7z','tar','gz','bz2','xz'].includes(ext)) return '📦';
+      if (['apk','exe','dmg','deb','rpm','msi'].includes(ext)) return '⚙️';
       return '📎';
     }
-
     function _fmtSize(bytes) {
-      if (bytes < 1024)             return bytes + ' B';
-      if (bytes < 1024 * 1024)     return (bytes / 1024).toFixed(1) + ' KB';
-      if (bytes < 1024 ** 3)       return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      if (bytes < 1024 ** 3) return (bytes / 1024 / 1024).toFixed(1) + ' MB';
       return (bytes / 1024 ** 3).toFixed(2) + ' GB';
     }
-
-    // ── File upload (phone → computer) ────────────────────────────────────────
     function _uploadFile(file) {
       const id = 'fc_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-
-      // Create file card in feed
-      const card = document.createElement('div');
-      card.className = 'msg-file';
-      card.id = id;
-      card.innerHTML = `
-        <div class="fc-icon">${_fileIcon(file.name)}</div>
-        <div class="fc-meta">
-          <div class="fc-lbl">Sending</div>
-          <div class="fc-name">${esc(file.name)}</div>
-          <div class="fc-size">${_fmtSize(file.size)}</div>
-          <div class="fc-bar-wrap"><div class="fc-bar" id="${id}_bar"></div></div>
-        </div>
-        <div class="fc-status" id="${id}_st">0%</div>
-      `;
-      feed.appendChild(card);
-      feed.scrollTop = feed.scrollHeight;
-
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', '/api/upload');
-      xhr.setRequestHeader('Authorization', `Bearer ${_authToken}`);
-
+      const card = document.createElement('div'); card.className = 'msg-file'; card.id = id;
+      card.innerHTML = `<div class="fc-icon">${_fileIcon(file.name)}</div><div class="fc-meta"><div class="fc-lbl">Sending</div><div class="fc-name">${esc(file.name)}</div><div class="fc-size">${_fmtSize(file.size)}</div><div class="fc-bar-wrap"><div class="fc-bar" id="${id}_bar"></div></div></div><div class="fc-status" id="${id}_st">0%</div>`;
+      feed.appendChild(card); feed.scrollTop = feed.scrollHeight;
+      const xhr = new XMLHttpRequest(); xhr.open('POST', '/api/upload'); xhr.setRequestHeader('Authorization', `Bearer ${_authToken}`);
       xhr.upload.onprogress = (e) => {
         if (!e.lengthComputable) return;
         const pct = Math.round(e.loaded / e.total * 100);
-        const bar = document.getElementById(`${id}_bar`);
-        const st  = document.getElementById(`${id}_st`);
-        if (bar) bar.style.width = pct + '%';
-        if (st)  st.textContent  = pct + '%';
+        const bar = document.getElementById(`${id}_bar`); const st = document.getElementById(`${id}_st`);
+        if (bar) bar.style.width = pct + '%'; if (st) st.textContent = pct + '%';
       };
-
       xhr.onload = () => {
-        const bar  = document.getElementById(`${id}_bar`);
-        const st   = document.getElementById(`${id}_st`);
-        const meta = card.querySelector('.fc-meta');
-        const lbl  = card.querySelector('.fc-lbl');
+        const bar = document.getElementById(`${id}_bar`); const st = document.getElementById(`${id}_st`); const meta = card.querySelector('.fc-meta'); const lbl = card.querySelector('.fc-lbl');
         if (xhr.status === 200) {
-          let savedName = file.name;
-          try { savedName = JSON.parse(xhr.responseText).name || file.name; } catch {}
+          let savedName = file.name; try { savedName = JSON.parse(xhr.responseText).name || file.name; } catch {}
           const dlUrl = `/uploads/${encodeURIComponent(savedName)}?token=${encodeURIComponent(_authToken)}`;
-          if (bar)  { bar.style.width = '100%'; bar.style.background = 'var(--green)'; }
-          if (st)   { st.textContent = '✓'; st.className = 'fc-status done'; }
-          if (lbl)  lbl.textContent = 'Sent';
-          if (meta) meta.insertAdjacentHTML('beforeend',
-            `<a class="fc-dl" href="${dlUrl}" download="${esc(savedName)}">⬇ Download back</a>`);
+          if (bar) { bar.style.width = '100%'; bar.style.background = 'var(--green)'; }
+          if (st) { st.textContent = '✓'; st.className = 'fc-status done'; }
+          if (lbl) lbl.textContent = 'Sent';
+          if (meta) meta.insertAdjacentHTML('beforeend', `<a class="fc-dl" href="${dlUrl}" download="${esc(savedName)}">⬇ Download back</a>`);
           toast('File sent!');
         } else {
-          let errMsg = 'Upload failed';
-          try { errMsg = JSON.parse(xhr.responseText).error || errMsg; } catch {}
-          if (bar) bar.style.background = '#f87171';
-          if (st)  { st.textContent = 'ERR'; st.className = 'fc-status err'; }
-          if (lbl) lbl.textContent = errMsg;
+          let errMsg = 'Upload failed'; try { errMsg = JSON.parse(xhr.responseText).error || errMsg; } catch {}
+          if (bar) bar.style.background = '#f87171'; if (st) { st.textContent = 'ERR'; st.className = 'fc-status err'; } if (lbl) lbl.textContent = errMsg;
         }
       };
-
-      xhr.onerror = () => {
-        const st  = document.getElementById(`${id}_st`);
-        const lbl = card.querySelector('.fc-lbl');
-        if (st)  { st.textContent = 'ERR'; st.className = 'fc-status err'; }
-        if (lbl) lbl.textContent = 'Connection error';
-      };
-
-      const fd = new FormData();
-      fd.append('file', file);
-      xhr.send(fd);
+      xhr.onerror = () => { const st = document.getElementById(`${id}_st`); const lbl = card.querySelector('.fc-lbl'); if (st) { st.textContent = 'ERR'; st.className = 'fc-status err'; } if (lbl) lbl.textContent = 'Connection error'; };
+      const fd = new FormData(); fd.append('file', file); xhr.send(fd);
     }
-
-    // File received by another WebSocket client (e.g., second open tab)
     function _onFileReceived(m) {
       const dlUrl = `/uploads/${encodeURIComponent(m.name)}?token=${encodeURIComponent(_authToken)}`;
-      const card  = document.createElement('div');
-      card.className = 'msg-file';
-      card.innerHTML = `
-        <div class="fc-icon">${_fileIcon(m.name)}</div>
-        <div class="fc-meta">
-          <div class="fc-lbl">Received</div>
-          <div class="fc-name">${esc(m.name)}</div>
-          <div class="fc-size">${_fmtSize(m.size)}</div>
-          <a class="fc-dl" href="${dlUrl}" download="${esc(m.name)}">⬇ Download</a>
-        </div>
-        <div class="fc-status done">✓</div>
-      `;
-      feed.appendChild(card);
-      feed.scrollTop = feed.scrollHeight;
-      toast('File received on computer!');
+      const card = document.createElement('div'); card.className = 'msg-file';
+      card.innerHTML = `<div class="fc-icon">${_fileIcon(m.name)}</div><div class="fc-meta"><div class="fc-lbl">Received</div><div class="fc-name">${esc(m.name)}</div><div class="fc-size">${_fmtSize(m.size)}</div><a class="fc-dl" href="${dlUrl}" download="${esc(m.name)}">⬇ Download</a></div><div class="fc-status done">✓</div>`;
+      feed.appendChild(card); feed.scrollTop = feed.scrollHeight; toast('File received on computer!');
     }
-
-    // File input change handler
-    document.getElementById('file-inp').addEventListener('change', function () {
-      Array.from(this.files).forEach(_uploadFile);
-      this.value = ''; // reset so the same file can be re-sent
-    });
+    document.getElementById('file-inp').addEventListener('change', function () { Array.from(this.files).forEach(_uploadFile); this.value = ''; });
 
     // ── Commands ──────────────────────────────────────────────────────────────
     function doSend() {
-      const inp = document.getElementById('inp');
-      const txt = inp.value.trim();
-      if (!txt) return;
-      inp.value = '';
-      append('user', txt);
-      const enc  = _encrypt(txt);
-      const body = enc ? { enc } : { text: txt };
+      const inp = document.getElementById('inp'); const txt = inp.value.trim(); if (!txt) return;
+      inp.value = ''; append('user', txt);
+      const enc = _encrypt(txt); const body = enc ? { enc } : { text: txt };
+      _authFetch('/api/command', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    }
+    function doWake() { sys('Sending wake signal…'); _authFetch('/api/wake', { method: 'POST' }); }
+    document.getElementById('inp').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend(); } });
+
+    // ── Toast ─────────────────────────────────────────────────────────────────
+    let _toastTimer;
+    function toast(msg, isErr=false) {
+      const t = document.getElementById('toast'); t.textContent = msg; t.className = isErr ? 'show err' : 'show';
+      clearTimeout(_toastTimer); _toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  ★ AVAILABLE MODE — Continuous STT (Browser SpeechRecognition) ★
+    //  Ek baar ON → bolo → auto STT → auto send → reply → repeat, no re-press.
+    // ═══════════════════════════════════════════════════════════════════════════
+    const availBtn = document.getElementById('avail-btn');
+    const availBar = document.getElementById('avail-bar');
+    let _availActive = false;
+    let _recognition = null;
+    let _restartTimer = null;
+    let _interimEl = null;
+    let _lastFinal = '';
+    let _lastSendAt = 0;
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+    const _sttSupported = !!SpeechRecognition;
+
+    function _updateAvailUI() {
+      if (_availActive) {
+        availBtn.classList.add('on');
+        availBtn.innerHTML = '<span>🟢</span><span class="txt">Available</span>';
+        availBar.classList.add('show');
+      } else {
+        availBtn.classList.remove('on');
+        availBtn.innerHTML = '<span>⚪</span><span class="txt">Available</span>';
+        availBar.classList.remove('show');
+        _removeInterim();
+      }
+    }
+
+    function _removeInterim() {
+      if (_interimEl && _interimEl.parentNode) _interimEl.parentNode.removeChild(_interimEl);
+      _interimEl = null;
+    }
+    function _showInterim(txt) {
+      if (!_interimEl) {
+        _interimEl = document.createElement('div');
+        _interimEl.className = 'msg-interim';
+        feed.appendChild(_interimEl);
+      }
+      _interimEl.textContent = '🎧 ' + txt + ' …';
+      feed.scrollTop = feed.scrollHeight;
+    }
+
+    async function toggleAvailable() {
+      if (_availActive) {
+        stopAvailable();
+      } else {
+        // if PCM live is running, stop it first to avoid double mic
+        if (_voiceWs) _stopVoice();
+        startAvailable();
+      }
+    }
+
+    function startAvailable() {
+      if (!_sttSupported) {
+        sys('⚠️ Browser STT not supported — Live PCM mic try kar raha hu…');
+        toast('STT not supported, switching to Live mic', true);
+        doMic();
+        return;
+      }
+      if (_availActive) return;
+      // ask mic permission explicitly before starting recognition (improves reliability)
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(s => {
+          s.getTracks().forEach(t => t.stop());
+          _startRecognition();
+        }).catch(e => {
+          if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+            sys('🎤 Mic permission denied — address bar ke lock par tap karke Allow karo.');
+            toast('Mic permission needed', true);
+          } else {
+            sys('Mic error: ' + e.message);
+          }
+        });
+      } else {
+        _startRecognition();
+      }
+    }
+
+    function _startRecognition() {
+      if (_recognition) { try { _recognition.abort(); } catch(e){} _recognition = null; }
+      const rec = new SpeechRecognition();
+      _recognition = rec;
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.maxAlternatives = 1;
+      const lang = _availLang();
+      rec.lang = (lang === 'auto') ? (navigator.language || 'hi-IN') : lang;
+      // keep recognition alive longer on Android Chrome
+      rec.interimResults = true;
+
+      let _finalBuffer = '';
+      let _silenceTimer = null;
+
+      rec.onstart = () => {
+        _availActive = true;
+        _updateAvailUI();
+        sys('🟢 Available ON — bolo, sun raha hu… (' + rec.lang + ')');
+        toast('🟢 Available — bolo!');
+        // haptic feedback if supported
+        try { navigator.vibrate && navigator.vibrate(30); } catch(e){}
+      };
+
+      rec.onresult = (event) => {
+        let interim = '';
+        let finalText = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const res = event.results[i];
+          const txt = res[0].transcript;
+          if (res.isFinal) finalText += txt + ' ';
+          else interim += txt + ' ';
+        }
+        finalText = finalText.trim();
+        interim = interim.trim();
+
+        if (interim) _showInterim(interim);
+        if (finalText) {
+          _removeInterim();
+          // debounce: avoid duplicate sends for same utterance (Chrome sometimes fires twice)
+          const now = Date.now();
+          const key = finalText.toLowerCase().trim();
+          if (key === _lastFinal && (now - _lastSendAt) < 1200) return;
+          _lastFinal = key; _lastSendAt = now;
+          _sendAvailableText(finalText);
+        }
+
+        // If user said something and then paused, some browsers keep interim without final.
+        // Fallback: after 1.2s of silence with interim present, treat interim as final.
+        if (interim && !finalText) {
+          clearTimeout(_silenceTimer);
+          _silenceTimer = setTimeout(() => {
+            const t = interim.trim();
+            if (t && t.length > 1) {
+              const now2 = Date.now();
+              if (t.toLowerCase() !== _lastFinal || (now2 - _lastSendAt) > 1500) {
+                _lastFinal = t.toLowerCase(); _lastSendAt = now2;
+                _removeInterim();
+                _sendAvailableText(t);
+              }
+            }
+          }, 1350);
+        }
+      };
+
+      rec.onspeechstart = () => { /* optional: show level */ };
+      rec.onspeechend = () => { clearTimeout(_silenceTimer); };
+
+      rec.onerror = (e) => {
+        const err = e.error || '';
+        if (err === 'not-allowed' || err === 'service-not-allowed') {
+          sys('🚫 Mic blocked — browser settings me microphone Allow karo.');
+          toast('Mic blocked', true);
+          stopAvailable();
+        } else if (err === 'audio-capture') {
+          sys('🎤 Mic not found — koi aur app mic use kar rahi hai kya?');
+          toast('Mic capture failed', true);
+        } else if (err === 'no-speech') {
+          // ignore — will auto-restart via onend
+        } else if (err === 'network') {
+          sys('🌐 STT network error — retrying…');
+        } else if (err === 'aborted') {
+          // user stopped or page hidden — ignore if still active
+        } else {
+          console.warn('STT error', e);
+        }
+      };
+
+      rec.onend = () => {
+        clearTimeout(_silenceTimer);
+        _removeInterim();
+        if (_availActive) {
+          // Continuous mode: Chrome ends after ~60s or after silence — auto restart
+          clearTimeout(_restartTimer);
+          _restartTimer = setTimeout(() => {
+            if (!_availActive) return;
+            try {
+              // respect visibility — don't restart while tab hidden (saves battery)
+              if (document.hidden) {
+                // wait for visibility
+                return;
+              }
+              rec.start();
+            } catch (e) {
+              // start may throw if already started — retry shortly
+              _restartTimer = setTimeout(() => { if (_availActive) _startRecognition(); }, 800);
+            }
+          }, 380);
+        } else {
+          _updateAvailUI();
+        }
+      };
+
+      try {
+        rec.start();
+        _availActive = true; // optimistic, onstart will confirm
+        _updateAvailUI();
+      } catch (e) {
+        sys('STT start failed: ' + e.message);
+        toast('STT start failed', true);
+        _availActive = false; _updateAvailUI();
+      }
+    }
+
+    function _sendAvailableText(txt) {
+      const clean = txt.trim();
+      if (!clean || clean.length < 1) return;
+      // filter very short noise like "a" "hmm"
+      if (clean.length < 2) return;
+      append('user', clean);
+      // haptic
+      try { navigator.vibrate && navigator.vibrate(20); } catch(e){}
+      const enc = _encrypt(clean);
+      const body = enc ? { enc } : { text: clean };
       _authFetch('/api/command', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
-      });
+      }).then(r => {
+        if (!r.ok) sys('⚠️ Send failed — network check karo');
+      }).catch(() => sys('⚠️ Send error — connection check karo'));
     }
 
-    function doWake() {
-      sys('Sending wake signal…');
-      _authFetch('/api/wake', { method: 'POST' });
+    function stopAvailable() {
+      _availActive = false;
+      clearTimeout(_restartTimer);
+      clearTimeout(_restartTimer);
+      _removeInterim();
+      _updateAvailUI();
+      if (_recognition) {
+        try { _recognition.onend = null; _recognition.onerror = null; _recognition.onresult = null; _recognition.abort(); } catch(e){}
+        try { _recognition.stop(); } catch(e){}
+        _recognition = null;
+      }
+      sys('⚪ Available OFF');
+      toast('Available OFF');
+      try { navigator.vibrate && navigator.vibrate([20,30,20]); } catch(e){}
     }
 
-    document.getElementById('inp').addEventListener('keydown', e => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend(); }
+    function _restartAvailable() {
+      if (!_availActive) return;
+      stopAvailable();
+      setTimeout(startAvailable, 650);
+    }
+
+    // Pause/resume on visibility change (lock/unlock)
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        // keep state but optionally pause to save battery — do NOT stop, just let onend handle
+      } else {
+        if (_availActive && (!_recognition || _recognition && true)) {
+          // if hidden ended recognition, restart now
+          setTimeout(() => {
+            if (_availActive && _recognition) {
+              try { _recognition.start(); } catch(e) {}
+            } else if (_availActive && !_recognition) {
+              _startRecognition();
+            }
+          }, 400);
+        }
+      }
     });
 
-    // ── Toast ─────────────────────────────────────────────────────────────────
-    let _toastTimer;
-    function toast(msg) {
-      const t = document.getElementById('toast');
-      t.textContent = msg; t.classList.add('show');
-      clearTimeout(_toastTimer);
-      _toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
-    }
+    // Auto-restore Available if user left it ON last time
+    (function _restoreAvailable() {
+      if (localStorage.getItem('jarvis_avail_was_on') === '1') {
+        setTimeout(() => {
+          // only auto-start if page is visible and we have token
+          if (!document.hidden && _authToken) {
+            sys('↩️ Available auto-restore…');
+            startAvailable();
+          }
+        }, 900);
+      }
+    })();
+    // persist Available state
+    const _origStartAvailable = startAvailable;
+    startAvailable = function() {
+      localStorage.setItem('jarvis_avail_was_on', '1');
+      return _origStartAvailable.apply(this, arguments);
+    };
+    const _origStopAvailable = stopAvailable;
+    stopAvailable = function() {
+      localStorage.setItem('jarvis_avail_was_on', '0');
+      return _origStopAvailable.apply(this, arguments);
+    };
 
-    // ── Real-time Voice — PCM16 WebSocket → Gemini Live ──────────────────────
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  ★ LIVE PCM MIC — Direct Gemini Live audio (fixed) ★
+    //  One tap ON → stays ON (latched), auto-reconnect, better error handling
+    // ═══════════════════════════════════════════════════════════════════════════
     const micBtn  = document.getElementById('mic-btn');
     let _voiceWs  = null;
     let _audioCtx = null;
     let _micStm   = null;
     let _audioNd  = null;
+    let _pcmWantOn = false; // latched desire
+    let _pcmRetry = 0;
 
     function _micIdle() {
       micBtn.innerHTML = '🎤';
-      micBtn.title     = 'Voice — tap to speak';
+      micBtn.title     = 'Live PCM mic — tap to speak (stays ON)';
       micBtn.classList.remove('recording');
+      _pcmWantOn = false;
     }
-
-    // Float32 PCM → resample to 16 kHz + convert to Int16
+    function _micRec() {
+      micBtn.innerHTML = '⏹';
+      micBtn.title     = 'Live PCM ON — tap to stop';
+      micBtn.classList.add('recording');
+      _pcmWantOn = true;
+    }
     function _f32toPcm16(f32, srcRate) {
       let s = f32;
       if (srcRate !== 16000) {
         const ratio = srcRate / 16000;
         const len   = Math.round(f32.length / ratio);
         s = new Float32Array(len);
-        for (let i = 0; i < len; i++)
-          s[i] = f32[Math.min(Math.round(i * ratio), f32.length - 1)];
+        for (let i = 0; i < len; i++) s[i] = f32[Math.min(Math.round(i * ratio), f32.length - 1)];
       }
       const out = new Int16Array(s.length);
-      for (let i = 0; i < s.length; i++)
-        out[i] = Math.max(-32768, Math.min(32767, Math.round(s[i] * 32768)));
+      for (let i = 0; i < s.length; i++) out[i] = Math.max(-32768, Math.min(32767, Math.round(s[i] * 32768)));
       return out.buffer;
     }
-
     function _showVoiceSetup() {
-      if (document.getElementById('voice-setup')) return; // show once
+      if (document.getElementById('voice-setup')) return;
       const origin = location.origin;
-      const card = document.createElement('div');
-      card.id = 'voice-setup';
-      card.style.cssText = [
-        'align-self:stretch', 'background:rgba(99,102,241,0.07)',
-        'border:1px solid rgba(99,102,241,0.22)', 'border-radius:14px',
-        'padding:16px 18px', 'font-size:13px', 'line-height:1.8',
-        'animation:pop 0.18s ease'
-      ].join(';');
-      card.innerHTML =
-        '<div style="font-weight:700;color:#818cf8;letter-spacing:.5px;margin-bottom:10px">🎤 One-time voice setup</div>' +
-        '<ol style="padding-left:18px;color:#8899aa;margin:0;display:flex;flex-direction:column;gap:4px">' +
-        '<li>Open a new tab → go to <span style="background:rgba(255,255,255,0.07);padding:1px 6px;border-radius:4px;font-family:monospace;font-size:12px">chrome://flags</span></li>' +
-        '<li>Search: <strong style="color:#dde3ed">Insecure origins treated as secure</strong></li>' +
-        '<li>Paste this URL into the box:<br><span id="flags-url" style="background:rgba(255,255,255,0.07);padding:2px 8px;border-radius:4px;font-family:monospace;font-size:11px;user-select:all;cursor:pointer">' + esc(origin) + '</span></li>' +
-        '<li>Set to <strong style="color:#22c55e">Enabled</strong> → tap <strong style="color:#dde3ed">Relaunch</strong></li>' +
-        '<li>Return here and tap 🎤</li>' +
-        '</ol>';
-      feed.appendChild(card);
-      feed.scrollTop = feed.scrollHeight;
-      // tap to copy
-      card.querySelector('#flags-url').addEventListener('click', () => {
-        navigator.clipboard?.writeText(origin).then(() => toast('URL copied!')).catch(() => {});
-      });
+      const card = document.createElement('div'); card.id = 'voice-setup';
+      card.style.cssText = ['align-self:stretch','background:rgba(99,102,241,0.07)','border:1px solid rgba(99,102,241,0.22)','border-radius:14px','padding:16px 18px','font-size:13px','line-height:1.8','animation:pop 0.18s ease'].join(';');
+      card.innerHTML = '<div style="font-weight:700;color:#818cf8;letter-spacing:.5px;margin-bottom:10px">🎤 One-time voice setup</div><ol style="padding-left:18px;color:#8899aa;margin:0;display:flex;flex-direction:column;gap:4px"><li>New tab → <span style="background:rgba(255,255,255,0.07);padding:1px 6px;border-radius:4px;font-family:monospace;font-size:12px">chrome://flags</span></li><li>Search: <strong style="color:#dde3ed">Insecure origins treated as secure</strong></li><li>Paste:<br><span id="flags-url" style="background:rgba(255,255,255,0.07);padding:2px 8px;border-radius:4px;font-family:monospace;font-size:11px;user-select:all;cursor:pointer">' + esc(origin) + '</span></li><li>Set <strong style="color:#22c55e">Enabled</strong> → <strong style="color:#dde3ed">Relaunch</strong></li><li>Return, tap 🎤 again</li></ol>';
+      feed.appendChild(card); feed.scrollTop = feed.scrollHeight;
+      card.querySelector('#flags-url').addEventListener('click', () => { navigator.clipboard?.writeText(origin).then(() => toast('URL copied!')).catch(()=>{}); });
     }
-
     async function doMic() {
-      if (_voiceWs) { _stopVoice(); return; }
-
-      if (!navigator.mediaDevices?.getUserMedia) {
-        _showVoiceSetup();
-        return;
+      // toggle latched PCM
+      if (_voiceWs) { _pcmWantOn = false; _stopVoice(); return; }
+      // if Available STT is ON, suggest to use that instead but allow both
+      if (_availActive) {
+        if (!confirm('Available STT already ON hai — Live PCM bhi start karu? Dono ek saath chal sakte hain, par Available hi kaafi fast hai. OK = Live bhi start.')) {
+          return;
+        }
       }
+      _pcmWantOn = true;
+      _pcmRetry = 0;
+      await _startPcm();
+    }
+    async function _startPcm() {
+      if (!navigator.mediaDevices?.getUserMedia) { _showVoiceSetup(); _pcmWantOn=false; return; }
       let stream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+          audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
         });
       } catch (e) {
-        sys(e.name === 'NotAllowedError'
-          ? 'Microphone denied — tap the address bar lock and allow microphone.'
-          : 'Mic error: ' + e.message);
-        return;
+        sys(e.name === 'NotAllowedError' ? 'Microphone denied — address bar lock se Allow karo.' : 'Mic error: ' + e.message);
+        toast('Mic permission failed', true); _pcmWantOn=false; return;
       }
-
-      // 16 kHz context (fall back to native rate — _f32toPcm16 resamples)
       let ctx;
-      try { ctx = new AudioContext({ sampleRate: 16000 }); }
-      catch (_) { ctx = new AudioContext(); }
+      try { ctx = new AudioContext({ sampleRate: 16000 }); } catch (_) { ctx = new AudioContext(); }
       if (ctx.state === 'suspended') await ctx.resume();
+      // handle interrupt by OS (phone call)
+      ctx.onstatechange = () => { if (ctx.state === 'interrupted' || ctx.state === 'suspended') ctx.resume().catch(()=>{}); };
 
       const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
-      const ws = new WebSocket(
-        `${wsProto}://${location.host}/ws/phone-audio?token=${encodeURIComponent(_authToken)}`
-      );
+      const ws = new WebSocket(`${wsProto}://${location.host}/ws/phone-audio?token=${encodeURIComponent(_authToken)}`);
       ws.binaryType = 'arraybuffer';
-
+      let _openOk = false;
       ws.onopen = async () => {
+        _openOk = true; _pcmRetry=0;
         const rate = ctx.sampleRate;
         const src  = ctx.createMediaStreamSource(stream);
-
-        // AudioWorklet (modern) — runs in dedicated audio thread
         const wCode = `class J extends AudioWorkletProcessor{process(i){const c=i[0]?.[0];if(c)this.port.postMessage(c.slice());return true;}}registerProcessor('j',J);`;
         try {
           const burl = URL.createObjectURL(new Blob([wCode], { type: 'application/javascript' }));
-          await ctx.audioWorklet.addModule(burl);
-          URL.revokeObjectURL(burl);
+          await ctx.audioWorklet.addModule(burl); URL.revokeObjectURL(burl);
           const nd = new AudioWorkletNode(ctx, 'j');
-          // Buffer to 1024 samples (64 ms at 16 kHz) before sending —
-          // matches PC mic chunk size, prevents queue flooding on the server.
           let _pbuf = [], _plen = 0;
           nd.port.onmessage = e => {
             const chunk = new Int16Array(_f32toPcm16(e.data, rate));
             _pbuf.push(chunk); _plen += chunk.length;
             if (_plen >= 1024) {
-              const out = new Int16Array(_plen); let off = 0;
-              for (const c of _pbuf) { out.set(c, off); off += c.length; }
+              const out = new Int16Array(_plen); let off=0; for (const c of _pbuf){ out.set(c,off); off+=c.length; }
               if (ws.readyState === 1) ws.send(out.buffer);
-              _pbuf = []; _plen = 0;
+              _pbuf=[]; _plen=0;
             }
           };
-          src.connect(nd);
-          _audioNd = nd;
+          src.connect(nd); _audioNd = nd;
         } catch (_) {
-          // ScriptProcessor fallback (deprecated, still works everywhere)
           const sp = ctx.createScriptProcessor(4096, 1, 1);
-          sp.onaudioprocess = e => {
-            if (ws.readyState === 1) ws.send(_f32toPcm16(e.inputBuffer.getChannelData(0), rate));
-          };
-          src.connect(sp); sp.connect(ctx.destination);
-          _audioNd = sp;
+          sp.onaudioprocess = e => { if (ws.readyState === 1) ws.send(_f32toPcm16(e.inputBuffer.getChannelData(0), rate)); };
+          src.connect(sp); sp.connect(ctx.destination); _audioNd = sp;
         }
-
-        micBtn.innerHTML = '⏹';
-        micBtn.title     = 'Tap to stop';
-        micBtn.classList.add('recording');
-        sys('Voice live — speak now');
-        toast('🎤 Live');
+        _micRec(); sys('🔴 Live PCM ON — bolo'); toast('🎤 Live ON');
+        try { navigator.vibrate && navigator.vibrate(30); } catch(e){}
       };
-
-      ws.onclose = () => { _stopVoice(); };
-      ws.onerror = () => { sys('Voice connection failed.'); _stopVoice(); };
-
-      _voiceWs  = ws;
-      _audioCtx = ctx;
-      _micStm   = stream;
+      const _schedulePcmReconnect = () => {
+        if (!_pcmWantOn) return;
+        _pcmRetry++;
+        const delay = Math.min(2500, 400 * Math.pow(1.6, _pcmRetry));
+        sys('Live mic reconnecting… ('+_pcmRetry+')');
+        setTimeout(() => { if (_pcmWantOn && !_voiceWs) _startPcm(); }, delay);
+      };
+      ws.onclose = () => {
+        _stopVoice(false);
+        if (_pcmWantOn && _openOk) _schedulePcmReconnect();
+        else if (_pcmWantOn && !_openOk) { sys('Live connection failed — Available STT use karo, woh zyada stable hai.'); toast('Live failed — try Available', true); _pcmWantOn=false; }
+      };
+      ws.onerror = () => { /* onclose will handle */ };
+      _voiceWs = ws; _audioCtx = ctx; _micStm = stream;
+      // if ws doesn't open in 3.5s, treat as failed
+      setTimeout(() => { if (!_openOk && _voiceWs===ws && ws.readyState!==1) { try{ws.close();}catch(e){} } }, 3500);
     }
-
-    function _stopVoice() {
-      if (_audioNd)  { try { _audioNd.disconnect(); }  catch (_) {}; _audioNd  = null; }
-      if (_audioCtx) { try { _audioCtx.close(); }      catch (_) {}; _audioCtx = null; }
+    function _stopVoice(updateWant=true) {
+      if (updateWant) _pcmWantOn=false;
+      if (_audioNd)  { try { _audioNd.disconnect(); } catch (_) {}; _audioNd = null; }
+      if (_audioCtx) { try { _audioCtx.close(); } catch (_) {}; _audioCtx = null; }
       if (_micStm)   { _micStm.getTracks().forEach(t => t.stop()); _micStm = null; }
-      if (_voiceWs)  {
-        const w = _voiceWs; _voiceWs = null;
-        if (w.readyState < 2) w.close();
-      }
+      if (_voiceWs)  { const w=_voiceWs; _voiceWs=null; if (w.readyState<2) w.close(); }
       _micIdle();
+      if (updateWant) { sys('⏹ Live PCM OFF'); toast('Live OFF'); }
     }
+    // also resume AudioContext when page becomes visible
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && _audioCtx && _audioCtx.state==='suspended') _audioCtx.resume().catch(()=>{});
+    });
+
+    // ── Help card on first load if STT supported ──────────────────────────────
+    (function _helpCard(){
+      if (localStorage.getItem('jarvis_help_shown')) return;
+      // show only after connected
+      setTimeout(() => {
+        if (document.getElementById('avail-help')) return;
+        const c = document.createElement('div');
+        c.id='avail-help';
+        c.style.cssText='align-self:stretch;background:rgba(34,197,94,0.07);border:1px solid rgba(34,197,94,0.20);border-radius:14px;padding:14px 16px;font-size:13px;line-height:1.6;animation:pop 0.2s ease';
+        c.innerHTML = '<div style="font-weight:800;color:var(--green);margin-bottom:6px">✨ NEW — Available mic (no PC mic needed)</div><div style="color:#9aa8c0">PC me mic nahi hai? <b style="color:#dde3ed">Available</b> dabao — ek baar ON, phir <b style="color:#dde3ed">bolo → auto type → auto send → reply</b>, repeat. Baar-baar dabane ki zarurat nahi.<br><span style="font-size:11px;color:var(--muted)">Language upar se change kar sakte ho (हिंदी / English). Live PCM 🎤 ab bhi hai agar direct audio chahiye.</span></div><div style="margin-top:10px;display:flex;gap:8px"><button onclick="toggleAvailable(); this.parentNode.parentNode.remove(); localStorage.setItem(\'jarvis_help_shown\',\'1\')" style="background:var(--green);color:#000;border:none;padding:8px 14px;border-radius:999px;font-weight:800;cursor:pointer">🟢 Available ON karo</button><button onclick="this.parentNode.parentNode.remove(); localStorage.setItem(\'jarvis_help_shown\',\'1\')" style="background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:8px 14px;border-radius:999px;cursor:pointer">Band karo</button></div>';
+        feed.appendChild(c); feed.scrollTop=feed.scrollHeight;
+      }, 1200);
+    })();
   </script>
 </body>
 </html>

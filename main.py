@@ -1267,8 +1267,11 @@ class JarvisLive:
                 while True:
                     await asyncio.sleep(0.1)
         except Exception as e:
-            print(f"[JARVIS] ❌ Mic: {e}")
-            raise
+            print(f"[JARVIS] ❌ Mic: {e} — PC mic not available, continuing with phone-only mode")
+            # FIX: don't kill session when PC has no mic; keep alive for phone Available mic
+            # Sleep forever inside this task so TaskGroup stays alive; phone mic still works
+            while True:
+                await asyncio.sleep(1)
 
     async def _receive_audio(self):
         print("[JARVIS] 👂 Recv started")
@@ -1758,7 +1761,7 @@ class JarvisLive:
             self._phone_active = True   # phone is streaming — silence PC mic
             with self._speaking_lock:
                 speaking = self._is_speaking
-            if not speaking and not self.ui.muted:
+            if not speaking:  # FIX: phone mic independent of PC mute (Available mode)
                 try:
                     self.out_queue.put_nowait(chunk)
                 except asyncio.QueueFull:
