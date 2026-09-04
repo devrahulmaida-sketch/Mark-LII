@@ -1077,7 +1077,27 @@ class JarvisLive:
                     angle     = args.get("angle", "screen").lower()
                     user_text = args.get("text", "What do you see?")
                     if angle == "camera":
-                        img_b, mime_t = await loop.run_in_executor(None, _capture_camera)
+                        # Try phone camera first (if remote device is streaming)
+                        phone_frame = None
+                        try:
+                            if self._dashboard and hasattr(self._dashboard, 'get_phone_camera_frame'):
+                                phone_frame = self._dashboard.get_phone_camera_frame()
+                                if phone_frame:
+                                    print(f"[Vision] 📱 Phone camera: {len(phone_frame[0]):,} bytes (from remote device)")
+                        except Exception as _e:
+                            print(f"[Vision] Phone camera check failed: {_e}")
+                        if phone_frame:
+                            img_b, mime_t = phone_frame
+                            # Also show on PC UI if possible
+                            try:
+                                if hasattr(self.ui, 'show_camera_frame'):
+                                    self.ui.show_camera_frame(img_b)
+                                elif hasattr(self.ui, 'start_camera_stream'):
+                                    self.ui.start_camera_stream()
+                            except Exception:
+                                pass
+                        else:
+                            img_b, mime_t = await loop.run_in_executor(None, _capture_camera)
                         self.ui.start_camera_stream()
                         self._vision_cam_active = True
                         print(f"[Vision] 📷 Camera: {len(img_b):,} bytes")

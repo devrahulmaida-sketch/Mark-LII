@@ -126,6 +126,24 @@
       animation: mic-pulse 1s ease-in-out infinite;
     }
     #mic-btn.unsupported { opacity: 0.3; cursor: not-allowed; }
+    #cam-btn {
+      background: var(--surface); border: 1px solid var(--border); color: var(--muted);
+      padding: 11px 13px; font-size: 16px; line-height: 1; border-radius: 12px;
+      cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    #cam-btn:hover { border-color: var(--accent); color: var(--accent); opacity:0.9; }
+    #cam-btn.live { background: rgba(34,197,94,0.14); border-color: rgba(34,197,94,0.45); color: #22c55e; animation: pulse 1.5s infinite; }
+    #cam-preview {
+      display:none; position:fixed; bottom:70px; right:12px; width:140px; height:105px;
+      border-radius:10px; border:2px solid var(--accent); background:#000; object-fit:cover; z-index:20;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+    #cam-preview.live { display:block; }
+    #cam-hint {
+      display:none; position:fixed; bottom:180px; right:12px; background:rgba(0,0,0,0.75); color:#fff;
+      font-size:11px; padding:4px 8px; border-radius:6px; z-index:20;
+    }
+    #cam-hint.show { display:block; }
     @keyframes mic-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.65;transform:scale(0.97)} }
 
     /* ── TOAST ── */
@@ -149,12 +167,15 @@
     <div class="spacer"></div>
     <div class="url">__IP__:__PORT__</div>
   </header>
+  <video id="cam-preview" autoplay playsinline muted></video>
+  <div id="cam-hint">📷 Phone camera live — tap video to flip camera</div>
   <main id="feed"></main>
   <footer>
     <input id="inp" placeholder="Send a command to JARVIS…" autocomplete="off">
     <label class="btn-attach" for="file-inp" title="Send file">📎</label>
     <input type="file" id="file-inp" multiple accept="*/*" style="display:none">
     <button id="mic-btn" onclick="doMic()" title="Voice command">🎤</button>
+    <button id="cam-btn" onclick="togglePhoneCamera()" title="Phone camera as webcam — JARVIS can see via your phone">📷</button>
     <button class="btn btn-wake" id="wake" onclick="doWake()">WAKE</button>
     <button class="btn btn-send" onclick="doSend()">SEND</button>
   </footer>
@@ -632,6 +653,92 @@
     }
 
     function _stopVoice(){ _stopAllMic(); }
+    // ── Phone Camera as Webcam (remote device) ─────────────────────────────
+    const camBtn = document.getElementById('cam-preview') ? document.getElementById('cam-btn') : document.getElementById('cam-btn');
+    const camPreview = document.getElementById('cam-preview');
+    const camHint = document.getElementById('cam-hint');
+    let _camStream = null;
+    let _camWs = null;
+    let _camInterval = null;
+    let _camFacing = 'environment';
+    let _camActive = false;
+
+    function _updateCamBtn(){
+      if(_camActive){ camBtn.classList.add('live'); camBtn.title='Phone camera ON — tap to stop'; if(camHint) camHint.classList.add('show'); }
+      else { camBtn.classList.remove('live'); camBtn.title='Phone camera as webcam'; if(camHint) camHint.classList.remove('show'); }
+    }
+
+    async function togglePhoneCamera(){
+      if(_camActive) stopPhoneCamera();
+      else startPhoneCamera();
+    }
+
+    async function startPhoneCamera(){
+      if(!navigator.mediaDevices?.getUserMedia){ sys('Camera not supported'); return; }
+      try{
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: _camFacing, width:{ideal:1280}, height:{ideal:720} },
+          audio: false
+        });
+        camPreview.srcObject = stream;
+        camPreview.classList.add('live');
+        _camStream = stream;
+        _camActive = true;
+        _updateCamBtn();
+        sys('📷 Phone camera starting...');
+        const wsProto = location.protocol==='https:'?'wss':'ws';
+        const ws = new WebSocket(`${wsProto}://${location.host}/ws/phone-camera?token=${encodeURIComponent(_authToken)}`);
+        ws.binaryType='arraybuffer';
+        ws.onopen=()=>{
+          sys('📷 Phone camera live — JARVIS can now see via your phone. Bolo "kya dikh raha hai?"');
+          try{ toast('📷 Camera live'); }catch(e){}
+          _camActive=true; _updateCamBtn();
+          const canvas=document.createElement('canvas');
+          const ctx=canvas.getContext('2d');
+          _camInterval=setInterval(()=>{
+            if(ws.readyState!==1 || !camPreview.videoWidth) return;
+            const w=camPreview.videoWidth*0.55;
+            const h=camPreview.videoHeight*0.55;
+            canvas.width=w; canvas.height=h;
+            ctx.drawImage(camPreview,0,0,w,h);
+            canvas.toBlob(blob=>{
+              if(blob && ws.readyState===1){
+                blob.arrayBuffer().then(buf=>{ if(ws.readyState===1) ws.send(buf); });
+              }
+            },'image/jpeg',0.72);
+          }, 380);
+        };
+        ws.onclose=()=>{
+          if(_camActive) sys('📷 Camera disconnected');
+          stopPhoneCamera();
+        };
+        ws.onerror=()=>{ sys('Camera connection failed'); stopPhoneCamera(); };
+        _camWs=ws;
+        camPreview.onclick=async()=>{
+          _camFacing = (_camFacing==='environment' ? 'user' : 'environment');
+          sys('Switching to ' + (_camFacing==='environment'?'back':'front') + ' camera...');
+          stopPhoneCamera();
+          setTimeout(startPhoneCamera, 600);
+        };
+      }catch(e){
+        sys('Camera error: '+(e.message||e));
+        try{ toast('Camera failed',true);}catch(e2){}
+        _camActive=false; _updateCamBtn();
+      }
+    }
+
+    function stopPhoneCamera(){
+      _camActive=false; _updateCamBtn();
+      if(_camInterval) clearInterval(_camInterval);
+      _camInterval=null;
+      if(_camStream) _camStream.getTracks().forEach(t=>t.stop());
+      _camStream=null;
+      if(_camWs) try{_camWs.close();}catch(e){}
+      _camWs=null;
+      if(camPreview){ camPreview.srcObject=null; camPreview.classList.remove('live'); }
+      if(camHint) camHint.classList.remove('show');
+    }
+
   </script>
 </body>
 </html>

@@ -59,7 +59,8 @@ It's not just an assistant — it's an extension of your digital life.
 | 🎬 YouTube Control | Search, play, and control YouTube playback by voice |
 | 🖱️ Desktop Control | Taskbar, window management, and desktop-level operations |
 | 🧑‍💻 Silent Language Memory | Detects spoken language on first use — all future sessions adapt automatically |
-| 📱 Remote Dashboard | Control the assistant from your phone via QR code pairing |
+| 📱 Remote Dashboard | Control the assistant from your phone via QR code pairing — with mic + live typing |
+| 📷 Phone Camera as Webcam | Use your phone's camera as JARVIS webcam — JARVIS sees what your phone sees |
 | ⚡ Auto-Start on Boot | Registers with the OS startup system (registry / LaunchAgent / .desktop) |
 | 📋 Clipboard Intelligence | Copy any text → floating panel with Translate / Summarise / Explain / Fix |
 | 🪪 Assistant Customization | Change the assistant name, your name, voice, and colour from the UI — takes effect immediately |
@@ -181,6 +182,56 @@ It is held in memory only, deliberately: writing it to disk would make a fresh l
 
 
 ---
+
+## 📷 Phone Camera as Webcam — Remote Device Camera
+
+Your phone can act as JARVIS's eyes. When JARVIS is connected to a remote device via the Dashboard (QR-paired), the phone's camera feed is streamed to your PC and used whenever you ask JARVIS to look through the camera.
+
+This replaces the PC's webcam — so you can walk around with your phone and JARVIS sees the real world, not just your desk.
+
+### How it works
+1. **Phone streams → PC shows** — Tap the 📷 button in the phone dashboard to start streaming. Your phone sends JPEG frames (~2–3 fps, 0.7 quality) over a secure WebSocket (`/ws/phone-camera`) to the PC.
+2. **JARVIS prefers phone when live** — When `screen_process(angle="camera")` is called (by voice), the PC first checks for a fresh phone frame (<5 s old). If available, it uses that — otherwise it falls back to the PC's own webcam (`cv2`).
+3. **On-screen preview** — The phone shows a small live preview (bottom-right). Tap the preview to flip between front/back camera.
+
+### How to use — English
+1. **Connect your phone:** On your PC run JARVIS → open the Dashboard → scan the QR code with your phone browser. Allow microphone if asked.
+2. **Enable camera:** In the phone dashboard, tap the **📷** button in the bottom bar. Your browser will ask for *Camera permission* → tap **Allow**.
+3. **Check live indicator:** The 📷 button turns green and pulses, and a 140×105 preview appears at the bottom-right of the phone screen. The PC logs show `📷 Phone camera live`.
+4. **Ask JARVIS to see:** Now say any of these (voice or type in dashboard):
+   - Hindi: `kya dikh raha hai` · `screen per dikha` · `camera dekho` · `yahan kya hai` · `kya dekh rahe ho`
+   - English: `what do you see` · `look at camera` · `what's on camera` · `show me what you see`
+5. **JARVIS analyzes the phone feed** and replies. Keep the phone pointed at what you want it to see while you speak.
+6. **Stop:** Tap **📷** again on the phone to stop streaming (saves battery). You can also just close the phone browser.
+
+> **Tip:** Say `camera band karo` / `stop camera` or press the PC's `Close Camera` if you want JARVIS to close the vision session.
+
+### कैसे उपयोग करें — हिंदी
+1. **फोन कनेक्ट करो:** PC पर JARVIS चलाओ → Dashboard खोलो → QR कोड को फोन के ब्राउज़र से scan करो। माइक की permission माँगे तो Allow करो।
+2. **कैमरा ऑन करो:** फोन के dashboard में नीचे **📷** बटन दबाओ। ब्राउज़र *Camera permission* माँगेगा → **Allow** करो।
+3. **लाइव चेक करो:** 📷 बटन हरा होकर blink करेगा और नीचे छोटा preview दिखेगा। PC पर `📷 Phone camera live` दिखेगा।
+4. **JARVIS से बोलो:** अब बोलो — `kya dikh raha hai?` या `screen per dikha` / `camera dekho`। JARVIS तुरंत आपके फोन के कैमरे से देखकर बताएगा।
+5. **बंद करना:** दोबारा **📷** दबाओ तो कैमरा बंद हो जाएगा।
+
+### Permissions & privacy
+- Camera runs **only** when you tap 📷 — it never starts automatically.
+- Frames are sent only over your authenticated session (`token`), not broadcast.
+- Latest frame is kept in RAM on the PC for ≤5 seconds, then discarded. Nothing is saved to disk unless you ask JARVIS to save it.
+- To revoke, clear browser site data or tap the lock icon → *Camera* → *Block*.
+
+### Troubleshooting
+| Issue | Fix |
+|---|---|
+| `Camera not supported` | Use Chrome/Safari/Firefox on Android/iOS; ensure `https` or `localhost`. |
+| No preview after Allow | Reload page, re-tap 📷, check if another app is using the camera. |
+| JARVIS still shows PC webcam | Make sure 📷 is green/live on the phone **before** you ask `kya dikh raha hai`. Wait 1 s after tapping. |
+| Phone screen goes black | Keep the phone browser in foreground; background tabs may pause camera. |
+| Want to flip camera | Tap the small preview video on the phone to switch front ↔ back. |
+
+### For developers
+- **PC side:** `DashboardServer.get_phone_camera_frame()` → `(bytes, mime)` or `None` if >5 s old. `main.py` checks this before `_capture_camera()`.
+- **Phone side:** `dashboard/static/app.html` → `togglePhoneCamera()` captures `getUserMedia({video:{facingMode}})` → `canvas.toBlob('image/jpeg', 0.72)` → `ws.send(ArrayBuffer)` every ~380 ms to `/ws/phone-camera?token=...`.
+- **Server:** `dashboard/server.py` → `self._phone_camera_frame` + `self._phone_camera_ts` + `/ws/phone-camera` (binary) + `/api/phone-camera-status`.
 
 ## 🗺️ Mark Roadmap
 

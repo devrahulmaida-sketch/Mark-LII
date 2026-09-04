@@ -468,6 +468,8 @@ class DashboardServer:
         self._pending_keys: dict[str, float] = {}
         self._device_sessions: dict[str, dict] = {}  # device_token → {session_key}
         self._phone_audio_queue: asyncio.Queue    = asyncio.Queue(maxsize=200)
+        self._phone_camera_frame: bytes | None = None
+        self._phone_camera_ts: float = 0.0
         self._uploads_dir                 = UPLOADS_DIR
         self._login_html                  = _read("login.html")
         self._app_html                    = _read("app.html")
@@ -496,6 +498,15 @@ class DashboardServer:
         if self._ssl_enabled():
             return f"{self._ip}:{PORT + 1}"
         return f"{self._ip}:{PORT}"
+
+    def get_phone_camera_frame(self) -> tuple[bytes, str] | None:
+        """Return latest phone camera JPEG if fresh (<5s), else None. Thread-safe read."""
+        try:
+            if self._phone_camera_frame and (time.time() - self._phone_camera_ts) < 5.0:
+                return self._phone_camera_frame, "image/jpeg"
+        except Exception:
+            pass
+        return None
 
     def _aes_key(self, session_key: str) -> bytes:
         if session_key not in self._aes_cache:
@@ -718,6 +729,54 @@ class DashboardServer:
                 asyncio.create_task(self.broadcast(
                     {"type": "sys", "text": "Phone microphone stopped."}
                 ))
+
+        @app.websocket("/ws/phone-camera")
+        async def phone_camera_ws(websocket: WebSocket, token: str = ""):
+            tok = token.strip()
+            if not tok or tok not in self._tokens:
+                await websocket.close(code=4001)
+                return
+            await websocket.accept()
+            asyncio.create_task(self.broadcast(
+                {"type": "sys", "text": "📷 Phone camera live — JARVIS can see via your phone."}
+            ))
+            try:
+                while True:
+                    data = await websocket.receive_bytes()
+                    if len(data) > 1000:
+                        self._phone_camera_frame = data
+                        self._phone_camera_ts = time.time()
+            except WebSocketDisconnect:
+                pass
+            finally:
+                asyncio.create_task(self.broadcast(
+                    {"type": "sys", "text": "📷 Phone camera stopped."}
+                ))
+
+        @app.post("/api/phone-camera-frame")
+        async def phone_camera_frame_ep(req: Request):
+            if not _auth(req):
+                return JSONResponse({"error": "Unauthorized"}, status_code=401)
+            try:
+                body = await req.json()
+                b64 = body.get("data", "")
+                if b64:
+                    import base64 as _b64
+                    data = _b64.b64decode(b64)
+                    if len(data) > 1000:
+                        self._phone_camera_frame = data
+                        self._phone_camera_ts = time.time()
+                        return JSONResponse({"ok": True})
+            except Exception as e:
+                return JSONResponse({"error": str(e)}, status_code=400)
+            return JSONResponse({"error": "Invalid data"}, status_code=400)
+
+        @app.get("/api/phone-camera-status")
+        async def phone_camera_status(req: Request):
+            if not _auth(req):
+                return JSONResponse({"error": "Unauthorized"}, status_code=401)
+            has = self._phone_camera_frame is not None and (time.time() - self._phone_camera_ts) < 5.0
+            return JSONResponse({"live": has, "age": time.time() - self._phone_camera_ts if has else None})
 
         # ── File sharing ──────────────────────────────────────────────────────
 
