@@ -2641,21 +2641,21 @@ class MainWindow(QMainWindow):
                         ext_data = None
                 if ext_data:
                     self._cam_frame_sig.emit(ext_data)
-                    if self._cam_stop.wait(0.08):
+                    if self._cam_stop.wait(0.045):
                         break
                     continue
 
                 if cap is not None and cap.isOpened():
                     ret, frame = cap.read()
                     if ret and frame is not None:
-                        _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 65])
+                        _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 60])
                         self._cam_frame_sig.emit(buf.tobytes())
                 else:
                     if self._cam_stop.wait(0.1):
                         break
                     continue
 
-                if self._cam_stop.wait(0.033):
+                if self._cam_stop.wait(0.028):
                     break
 
             if cap is not None:

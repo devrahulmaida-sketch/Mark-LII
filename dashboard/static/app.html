@@ -696,7 +696,7 @@
       if(!navigator.mediaDevices?.getUserMedia){ sys('Camera not supported'); return; }
       try{
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: _camFacing, width:{ideal:1280}, height:{ideal:720} },
+          video: { facingMode: _camFacing, width:{ideal:960}, height:{ideal:540}, frameRate:{ideal:24, max:30} },
           audio: false
         });
         camPreview.srcObject = stream;
@@ -714,18 +714,24 @@
           _camActive=true; _updateCamBtn();
           const canvas=document.createElement('canvas');
           const ctx=canvas.getContext('2d');
+          // Low-lag: 160ms (~6fps), 0.48 scale, q0.60, send blob directly
+          let _lastSend = 0;
           _camInterval=setInterval(()=>{
             if(ws.readyState!==1 || !camPreview.videoWidth) return;
-            const w=camPreview.videoWidth*0.55;
-            const h=camPreview.videoHeight*0.55;
+            const now = performance.now();
+            if (now - _lastSend < 145) return;
+            _lastSend = now;
+            const w=(camPreview.videoWidth*0.48)|0;
+            const h=(camPreview.videoHeight*0.48)|0;
+            if (w<16 || h<16) return;
             canvas.width=w; canvas.height=h;
             ctx.drawImage(camPreview,0,0,w,h);
             canvas.toBlob(blob=>{
-              if(blob && ws.readyState===1){
-                blob.arrayBuffer().then(buf=>{ if(ws.readyState===1) ws.send(buf); });
-              }
-            },'image/jpeg',0.72);
-          }, 380);
+              if(!blob || ws.readyState!==1) return;
+              try { ws.send(blob); }
+              catch(e) { blob.arrayBuffer().then(buf=>{ if(ws.readyState===1) ws.send(buf); }); }
+            },'image/jpeg',0.60);
+          }, 160);
         };
         ws.onclose=()=>{
           if(_camActive) sys('📷 Camera disconnected');
