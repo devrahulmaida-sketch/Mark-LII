@@ -2473,7 +2473,8 @@ class MainWindow(QMainWindow):
         _cam_v.addLayout(_cam_hdr)
         self._cam_live_lbl = QLabel()
         self._cam_live_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._cam_live_lbl.setStyleSheet("background: transparent;")
+        self._cam_live_lbl.setStyleSheet("background: #000;")
+        self._cam_live_lbl.setScaledContents(False)
         self._cam_live_lbl.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
@@ -2585,7 +2586,7 @@ class MainWindow(QMainWindow):
             if w > 1 and h > 1:
                 self._cam_live_lbl.setPixmap(
                     px.scaled(w, h,
-                              Qt.AspectRatioMode.KeepAspectRatio,
+                              Qt.AspectRatioMode.KeepAspectRatioByExpanding,
                               Qt.TransformationMode.SmoothTransformation)
                 )
 

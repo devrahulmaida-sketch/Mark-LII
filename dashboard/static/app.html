@@ -140,13 +140,13 @@
     }
     #cam-preview.live { display:block; }
     #cam-preview.live.big {
-      top:50%; left:50%; bottom:auto; right:auto;
-      transform: translate(-50%, -58%);
-      width: min(92vw, 680px);
-      height: min(58vh, 460px);
-      border-width:3px; border-radius:18px;
-      box-shadow: 0 12px 40px rgba(0,0,0,0.7);
-      z-index:30;
+      inset: 0;
+      top: 0; left: 0; right: 0; bottom: 0;
+      width: 100vw; height: 100vh; height: 100dvh;
+      transform: none;
+      border: none; border-radius: 0;
+      object-fit: cover;
+      z-index: 30;
     }
     #cam-backdrop {
       display:none; position:fixed; inset:0; background:rgba(2,6,12,0.55); backdrop-filter: blur(4px); z-index:29;
@@ -157,6 +157,11 @@
       font-size:11px; padding:4px 8px; border-radius:6px; z-index:20;
     }
     #cam-hint.show { display:block; }
+    #cam-hint.show.big {
+      top: 12px; bottom: auto; left: 50%; right: auto; transform: translateX(-50%);
+      background: rgba(0,0,0,0.6); backdrop-filter: blur(6px);
+      padding: 6px 14px; border-radius: 20px; font-size: 12px; z-index: 31;
+    }
     @keyframes mic-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.65;transform:scale(0.97)} }
 
     /* ── TOAST ── */
@@ -679,7 +684,7 @@
 
     function _updateCamBtn(){
       if(_camActive){ camBtn.classList.add('live'); camBtn.title='Phone camera ON — tap to stop'; if(camHint) camHint.classList.add('show'); }
-      else { camBtn.classList.remove('live'); camBtn.title='Phone camera as webcam'; if(camHint) camHint.classList.remove('show'); }
+      else { camBtn.classList.remove('live'); camBtn.title='Phone camera as webcam'; if(camHint){ camHint.classList.remove('show'); camHint.classList.remove('big'); } }
     }
 
     async function togglePhoneCamera(){
@@ -751,6 +756,8 @@
                 camPreview.classList.toggle('big', _camBig);
                 const bd=document.getElementById('cam-backdrop');
                 if(bd) bd.classList.toggle('show', _camBig);
+                const hint=document.getElementById('cam-hint');
+                if(hint) hint.classList.toggle('big', _camBig);
               }
             }, 360);
           }
@@ -771,7 +778,7 @@
       if(_camWs) try{_camWs.close();}catch(e){}
       _camWs=null;
       if(camPreview){ camPreview.srcObject=null; camPreview.classList.remove('live'); camPreview.classList.remove('big'); const bd=document.getElementById('cam-backdrop'); if(bd) bd.classList.remove('show'); _camBig=false; }
-      if(camHint) camHint.classList.remove('show');
+      if(camHint){ camHint.classList.remove('show'); camHint.classList.remove('big'); }
     }
 
   </script>
