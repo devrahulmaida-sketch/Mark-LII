@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>JARVIS Dashboard — Fixed Mic</title>
+  <title>JARVIS Dashboard — Fixed Mic v3</title>
   <script src="/static/crypto.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -471,21 +471,31 @@
       };
 
       rec.onresult = (event) => {
+        // v3 FIX: compute full final transcript from all results (not just new chunk)
+        // to avoid duplication like "can can you can you hear me" or "because because..."
+        let allFinal = '';
         let interim = '';
-        let finalChunk = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const res = event.results[i];
-          const txt = res[0].transcript;
-          if (res.isFinal) finalChunk += txt + ' ';
-          else interim += txt + ' ';
+        for (let i = 0; i < event.results.length; i++) {
+          const txt = event.results[i][0].transcript;
+          if (event.results[i].isFinal) allFinal += txt + ' ';
+          else interim = txt; // last interim
         }
-        finalChunk = finalChunk.trim();
+        allFinal = allFinal.trim();
         interim = interim.trim();
 
-        if (finalChunk) {
-          _pendingFinal = (_pendingFinal + ' ' + finalChunk).trim();
+        // clean interim if it duplicates allFinal prefix
+        let displayInterim = interim;
+        if (allFinal && interim && interim.toLowerCase().startsWith(allFinal.toLowerCase())) {
+          // interim already contains final, show as is
+          displayInterim = interim;
+        } else if (allFinal && interim) {
+          displayInterim = allFinal + ' ' + interim;
+        }
+
+        if (allFinal) {
+          _pendingFinal = allFinal; // replace, not append — prevents "play play play" duplication
           _lastInterimForFallback = '';
-          if (interim) _showInterim(_pendingFinal + ' ' + interim);
+          if (displayInterim) _showInterim(displayInterim);
           else _removeInterim();
           clearTimeout(_debounceTimer);
           clearTimeout(_silenceTimer);
@@ -494,17 +504,17 @@
             if (toSend.length > 1) {
               const key = toSend.toLowerCase();
               const now = Date.now();
-              if (key !== _lastFinal || (now - _lastSendAt) > 1500) {
+              if (key !== _lastFinal || (now - _lastSendAt) > 1800) {
                 _lastFinal = key; _lastSendAt = now;
                 _removeInterim();
                 _sendAvailableText(toSend);
               }
             }
             _pendingFinal = '';
-          }, 850);
+          }, 800);
         } else if (interim) {
           _lastInterimForFallback = interim;
-          _showInterim(_pendingFinal ? _pendingFinal + ' ' + interim : interim);
+          _showInterim(interim);
           clearTimeout(_silenceTimer);
           _silenceTimer = setTimeout(() => {
             if (!_pendingFinal && _lastInterimForFallback) {
@@ -512,7 +522,7 @@
               if (t.length > 2) {
                 const key = t.toLowerCase();
                 const now = Date.now();
-                if (key !== _lastFinal || (now - _lastSendAt) > 1500) {
+                if (key !== _lastFinal || (now - _lastSendAt) > 1800) {
                   _lastFinal = key; _lastSendAt = now;
                   _removeInterim();
                   _sendAvailableText(t);
@@ -520,7 +530,7 @@
                 }
               }
             }
-          }, 1400);
+          }, 1300);
         }
       };
 
