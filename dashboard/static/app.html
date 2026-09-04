@@ -373,6 +373,10 @@
     let _interimEl = null;
     let _lastFinal = '';
     let _lastSendAt = 0;
+    let _pendingFinal = '';
+    let _debounceTimer = null;
+    let _silenceTimer = null;
+    let _lastInterimForFallback = '';
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
     const _sttSupported = !!SpeechRecognition;
@@ -453,55 +457,70 @@
       rec.interimResults = true;
 
       let _finalBuffer = '';
-      let _silenceTimer = null;
+      // _silenceTimer is top-level (v2)
 
       rec.onstart = () => {
+        const wasActive = _availActive;
         _availActive = true;
         _updateAvailUI();
-        sys('🟢 Available ON — bolo, sun raha hu… (' + rec.lang + ')');
-        toast('🟢 Available — bolo!');
-        // haptic feedback if supported
-        try { navigator.vibrate && navigator.vibrate(30); } catch(e){}
+        if (!wasActive) {
+          sys('🟢 Available ON — bolo, sun raha hu... (' + rec.lang + ')');
+          toast('🟢 Available — bolo!');
+          try { navigator.vibrate && navigator.vibrate(30); } catch(e){}
+        }
       };
 
       rec.onresult = (event) => {
         let interim = '';
-        let finalText = '';
+        let finalChunk = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const res = event.results[i];
           const txt = res[0].transcript;
-          if (res.isFinal) finalText += txt + ' ';
+          if (res.isFinal) finalChunk += txt + ' ';
           else interim += txt + ' ';
         }
-        finalText = finalText.trim();
+        finalChunk = finalChunk.trim();
         interim = interim.trim();
 
-        if (interim) _showInterim(interim);
-        if (finalText) {
-          _removeInterim();
-          // debounce: avoid duplicate sends for same utterance (Chrome sometimes fires twice)
-          const now = Date.now();
-          const key = finalText.toLowerCase().trim();
-          if (key === _lastFinal && (now - _lastSendAt) < 1200) return;
-          _lastFinal = key; _lastSendAt = now;
-          _sendAvailableText(finalText);
-        }
-
-        // If user said something and then paused, some browsers keep interim without final.
-        // Fallback: after 1.2s of silence with interim present, treat interim as final.
-        if (interim && !finalText) {
+        if (finalChunk) {
+          _pendingFinal = (_pendingFinal + ' ' + finalChunk).trim();
+          _lastInterimForFallback = '';
+          if (interim) _showInterim(_pendingFinal + ' ' + interim);
+          else _removeInterim();
+          clearTimeout(_debounceTimer);
           clearTimeout(_silenceTimer);
-          _silenceTimer = setTimeout(() => {
-            const t = interim.trim();
-            if (t && t.length > 1) {
-              const now2 = Date.now();
-              if (t.toLowerCase() !== _lastFinal || (now2 - _lastSendAt) > 1500) {
-                _lastFinal = t.toLowerCase(); _lastSendAt = now2;
+          _debounceTimer = setTimeout(() => {
+            const toSend = _pendingFinal.trim();
+            if (toSend.length > 1) {
+              const key = toSend.toLowerCase();
+              const now = Date.now();
+              if (key !== _lastFinal || (now - _lastSendAt) > 1500) {
+                _lastFinal = key; _lastSendAt = now;
                 _removeInterim();
-                _sendAvailableText(t);
+                _sendAvailableText(toSend);
               }
             }
-          }, 1350);
+            _pendingFinal = '';
+          }, 850);
+        } else if (interim) {
+          _lastInterimForFallback = interim;
+          _showInterim(_pendingFinal ? _pendingFinal + ' ' + interim : interim);
+          clearTimeout(_silenceTimer);
+          _silenceTimer = setTimeout(() => {
+            if (!_pendingFinal && _lastInterimForFallback) {
+              const t = _lastInterimForFallback.trim();
+              if (t.length > 2) {
+                const key = t.toLowerCase();
+                const now = Date.now();
+                if (key !== _lastFinal || (now - _lastSendAt) > 1500) {
+                  _lastFinal = key; _lastSendAt = now;
+                  _removeInterim();
+                  _sendAvailableText(t);
+                  _lastInterimForFallback = '';
+                }
+              }
+            }
+          }, 1400);
         }
       };
 
@@ -587,6 +606,10 @@
       _availActive = false;
       clearTimeout(_restartTimer);
       clearTimeout(_restartTimer);
+      try { clearTimeout(_debounceTimer); } catch(e){}
+      try { clearTimeout(_silenceTimer); } catch(e){}
+      _pendingFinal = '';
+      _lastInterimForFallback = '';
       _removeInterim();
       _updateAvailUI();
       if (_recognition) {
@@ -739,7 +762,7 @@
           nd.port.onmessage = e => {
             const chunk = new Int16Array(_f32toPcm16(e.data, rate));
             _pbuf.push(chunk); _plen += chunk.length;
-            if (_plen >= 1024) {
+            if (_plen >= 512) { // v2: 32ms for instant feel
               const out = new Int16Array(_plen); let off=0; for (const c of _pbuf){ out.set(c,off); off+=c.length; }
               if (ws.readyState === 1) ws.send(out.buffer);
               _pbuf=[]; _plen=0;
@@ -747,7 +770,7 @@
           };
           src.connect(nd); _audioNd = nd;
         } catch (_) {
-          const sp = ctx.createScriptProcessor(4096, 1, 1);
+          const sp = ctx.createScriptProcessor(2048, 1, 1); // v2
           sp.onaudioprocess = e => { if (ws.readyState === 1) ws.send(_f32toPcm16(e.inputBuffer.getChannelData(0), rate)); };
           src.connect(sp); sp.connect(ctx.destination); _audioNd = sp;
         }
