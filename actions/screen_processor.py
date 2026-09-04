@@ -11,8 +11,15 @@ import time
 from pathlib import Path
 from typing import Optional
 
-import numpy as np
-import sounddevice as sd
+try:
+    import numpy as np
+except ImportError:
+    np = None  # type: ignore
+
+try:
+    import sounddevice as sd
+except ImportError:
+    sd = None  # type: ignore
 
 try:
     import cv2
@@ -21,10 +28,25 @@ except ImportError:
     _CV2 = False
 
 try:
-    import mss
-    import mss.tools
-    _MSS = True
+    import mss as _mss_mod
+    import mss.tools as _mss_tools
+    # Verify the expected API exists (some broken installs / shadowing give no attribute 'mss')
+    if not hasattr(_mss_mod, "mss"):
+        # try alternative import style
+        try:
+            from mss import mss as _mss_factory
+            _mss_mod.mss = _mss_factory  # patch it
+        except Exception:
+            pass
+    _MSS = hasattr(_mss_mod, "mss")
+    if _MSS:
+        mss = _mss_mod
+        mss.tools = _mss_tools
+    else:
+        _MSS = False
 except ImportError:
+    _MSS = False
+except Exception:
     _MSS = False
 
 try:
@@ -108,17 +130,57 @@ def _compress(img_bytes: bytes, source_format: str = "PNG") -> tuple[bytes, str]
         return img_bytes, f"image/{source_format.lower()}"
 
 def _capture_screen() -> tuple[bytes, str]:
+    # Try mss first, then PIL ImageGrab, then pyautogui — robust fallback chain
+    last_err = None
 
-    if not _MSS:
-        raise RuntimeError("mss is not installed. Run: pip install mss")
+    # --- 1) mss ---
+    if _MSS:
+        try:
+            # mss may be available as mss.mss or via factory
+            factory = getattr(mss, "mss", None)
+            if factory is None:
+                from mss import mss as factory  # type: ignore
+            with factory() as sct:
+                monitors = sct.monitors  # [0]=all, [1..n]=real
+                target = monitors[1] if len(monitors) > 1 else monitors[0]
+                shot = sct.grab(target)
+                png = mss.tools.to_png(shot.rgb, shot.size)
+            return _compress(png, "PNG")
+        except Exception as e:
+            last_err = e
+            print(f"[Vision] ⚠️  mss capture failed: {e} — trying PIL fallback")
 
-    with mss.mss() as sct:
-        monitors = sct.monitors          # [0] = all combined, [1..n] = real screens
-        target   = monitors[1] if len(monitors) > 1 else monitors[0]
-        shot     = sct.grab(target)
-        png      = mss.tools.to_png(shot.rgb, shot.size)
+    # --- 2) PIL ImageGrab (works on Windows/macOS) ---
+    if _PIL:
+        try:
+            import PIL.ImageGrab  # type: ignore
+            img = PIL.ImageGrab.grab(all_screens=True)  # type: ignore
+            if img is None:
+                raise RuntimeError("ImageGrab returned None")
+            # compress via _compress helper (convert to PNG bytes first then compress)
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            return _compress(buf.getvalue(), "PNG")
+        except Exception as e:
+            last_err = e
+            print(f"[Vision] ⚠️  PIL ImageGrab failed: {e} — trying pyautogui")
 
-    return _compress(png, "PNG")
+    # --- 3) pyautogui ---
+    try:
+        import pyautogui  # type: ignore
+        img = pyautogui.screenshot()
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return _compress(buf.getvalue(), "PNG")
+    except Exception as e:
+        last_err = e
+        print(f"[Vision] ⚠️  pyautogui capture failed: {e}")
+
+    # --- all failed ---
+    raise RuntimeError(
+        "Screen capture failed — mss/PIL/pyautogui all failed. "
+        f"Last error: {last_err}. Try: pip install --upgrade mss pillow pyautogui"
+    )
 
 
 def _cv2_backend() -> int:
@@ -135,7 +197,7 @@ def _cv2_backend() -> int:
 
 def _probe_camera(index: int, backend: int, warmup: int = 5) -> bool:
 
-    if not _CV2:
+    if not _CV2 or np is None:
         return False
     cap = cv2.VideoCapture(index, backend)
     if not cap.isOpened():
