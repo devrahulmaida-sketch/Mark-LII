@@ -139,11 +139,28 @@
       box-shadow: 0 4px 20px rgba(0,0,0,0.5);
     }
     #cam-preview.live { display:block; }
+    #cam-preview.live.big {
+      top:50%; left:50%; bottom:auto; right:auto;
+      transform: translate(-50%, -58%);
+      width: min(92vw, 680px);
+      height: min(58vh, 460px);
+      border-width:3px; border-radius:18px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.08) inset;
+      z-index:30;
+    }
+    #cam-backdrop {
+      display:none; position:fixed; inset:0; background:rgba(2,6,12,0.72); backdrop-filter: blur(6px); z-index:29;
+    }
+    #cam-backdrop.show { display:block; }
     #cam-hint {
       display:none; position:fixed; bottom:180px; right:12px; background:rgba(0,0,0,0.75); color:#fff;
       font-size:11px; padding:4px 8px; border-radius:6px; z-index:20;
     }
     #cam-hint.show { display:block; }
+    #cam-hint.big {
+      top: calc(50% + 250px); bottom:auto; left:50%; right:auto; transform: translateX(-50%);
+      font-size:12px; padding:6px 12px; z-index:31;
+    }
     @keyframes mic-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.65;transform:scale(0.97)} }
 
     /* ── TOAST ── */
@@ -167,8 +184,9 @@
     <div class="spacer"></div>
     <div class="url">__IP__:__PORT__</div>
   </header>
+  <div id="cam-backdrop" onclick="togglePhoneCamera()"></div>
   <video id="cam-preview" autoplay playsinline muted></video>
-  <div id="cam-hint">📷 Phone camera live — tap video to flip camera</div>
+  <div id="cam-hint">📷 Phone camera live — tap to enlarge / flip • ✕ to close</div>
   <main id="feed"></main>
   <footer>
     <input id="inp" placeholder="Send a command to JARVIS…" autocomplete="off">
@@ -714,12 +732,32 @@
         };
         ws.onerror=()=>{ sys('Camera connection failed'); stopPhoneCamera(); };
         _camWs=ws;
-        camPreview.onclick=async()=>{
-          _camFacing = (_camFacing==='environment' ? 'user' : 'environment');
-          sys('Switching to ' + (_camFacing==='environment'?'back':'front') + ' camera...');
-          stopPhoneCamera();
-          setTimeout(startPhoneCamera, 600);
+        let _camBig = false;
+        function _setCamBig(on){
+          _camBig = on;
+          camPreview.classList.toggle('big', on);
+          document.getElementById('cam-backdrop').classList.toggle('show', on);
+          camHint.classList.toggle('big', on);
+          if(on) camHint.textContent='📷 LIVE — tap to shrink • long-press to flip camera';
+          else camHint.textContent='📷 Phone camera live — tap to enlarge / double-tap to flip';
+        }
+        camPreview.onclick=()=>{
+          // single tap toggles big, double-tap flips
+          if(camPreview._tapTimer){
+            clearTimeout(camPreview._tapTimer); camPreview._tapTimer=null;
+            // double tap = flip
+            (async()=>{
+              _camFacing = (_camFacing==='environment' ? 'user' : 'environment');
+              sys('Switching to ' + (_camFacing==='environment'?'back':'front') + ' camera...');
+              stopPhoneCamera();
+              setTimeout(startPhoneCamera, 600);
+            })();
+          } else {
+            camPreview._tapTimer=setTimeout(()=>{ camPreview._tapTimer=null; _setCamBig(!_camBig); }, 260);
+          }
         };
+        // Start in big mode for JARVIS HUD visibility
+        _setCamBig(true);
       }catch(e){
         sys('Camera error: '+(e.message||e));
         try{ toast('Camera failed',true);}catch(e2){}
@@ -735,8 +773,9 @@
       _camStream=null;
       if(_camWs) try{_camWs.close();}catch(e){}
       _camWs=null;
-      if(camPreview){ camPreview.srcObject=null; camPreview.classList.remove('live'); }
-      if(camHint) camHint.classList.remove('show');
+      if(camPreview){ camPreview.srcObject=null; camPreview.classList.remove('live'); camPreview.classList.remove('big'); }
+      const bd=document.getElementById('cam-backdrop'); if(bd) bd.classList.remove('show');
+      if(camHint) { camHint.classList.remove('show'); camHint.classList.remove('big'); }
     }
 
   </script>

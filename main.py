@@ -1098,23 +1098,86 @@ class JarvisLive:
                                 pass
                         else:
                             img_b, mime_t = await loop.run_in_executor(None, _capture_camera)
+                        # Wire phone as external provider for big HUD live view
+                        try:
+                            if phone_frame and hasattr(self.ui, 'set_external_camera_provider') and self._dashboard:
+                                self.ui.set_external_camera_provider(lambda: self._dashboard.get_phone_camera_frame())
+                            elif hasattr(self.ui, 'set_external_camera_provider'):
+                                self.ui.set_external_camera_provider(None)
+                        except Exception:
+                            pass
                         self.ui.start_camera_stream()
                         self._vision_cam_active = True
-                        print(f"[Vision] 📷 Camera: {len(img_b):,} bytes")
+                        print(f"[Vision] 📷 Camera: {len(img_b):,} bytes (big HUD live)")
                         _stall = "camera"
                     else:
                         img_b, mime_t = await loop.run_in_executor(None, _capture_screen)
                         print(f"[Vision] 🖥️  Screen: {len(img_b):,} bytes")
                         _stall = "screen"
                     self._pending_vision = (img_b, mime_t, user_text, angle)
+                    # Start real-time vision feeder for camera (keeps Gemini seeing live)
+                    if angle == "camera":
+                        try:
+                            if hasattr(self, '_realtime_vision_task') and self._realtime_vision_task and not self._realtime_vision_task.done():
+                                self._realtime_vision_task.cancel()
+                        except Exception:
+                            pass
+                        async def _realtime_feeder():
+                            try:
+                                await asyncio.sleep(3.0)
+                                for _ in range(10):
+                                    if not self.session:
+                                        break
+                                    try:
+                                        if hasattr(self.ui, '_win') and self.ui._win._hud_cam_stack.currentIndex() == 0:
+                                            break
+                                    except Exception:
+                                        pass
+                                    latest = None
+                                    try:
+                                        if self._dashboard and hasattr(self._dashboard, 'get_phone_camera_frame'):
+                                            latest = self._dashboard.get_phone_camera_frame()
+                                    except Exception:
+                                        pass
+                                    if latest:
+                                        b, m = latest
+                                    else:
+                                        try:
+                                            b, m = await loop.run_in_executor(None, _capture_camera)
+                                        except Exception:
+                                            break
+                                    try:
+                                        import base64 as _b64
+                                        b64 = _b64.b64encode(b).decode('ascii')
+                                        try:
+                                            await self.session.send_realtime_input(media={"data": b64, "mime_type": m})
+                                        except Exception:
+                                            await self.session.send_client_content(
+                                                turns={"parts": [{"inline_data": {"mime_type": m, "data": b64}}, {"text": "Live update — continue observing, stay brief."}]},
+                                                turn_complete=False
+                                            )
+                                    except Exception as _e:
+                                        print(f"[Vision] realtime send failed: {_e}")
+                                        break
+                                    await asyncio.sleep(2.2)
+                            except asyncio.CancelledError:
+                                pass
+                            except Exception as _e:
+                                print(f"[Vision] realtime feeder error: {_e}")
+                        self._realtime_vision_task = asyncio.create_task(_realtime_feeder())
                     result = (
-                        f"[VISION_ACTIVE] {_stall.capitalize()} captured. "
+                        f"[VISION_ACTIVE] {_stall.capitalize()} captured — LIVE mode in big HUD. "
                         f"Immediately say ONE short natural sentence in the user's own language, "
-                        f"telling them you are looking at their {_stall} right now. "
-                        f"Do NOT describe or guess content — the actual image arrives in the NEXT message."
+                        f"telling them you are looking at their {_stall} right now in real-time. "
+                        f"Do NOT describe or guess content — the actual image arrives in the NEXT message. You will keep receiving live frames."
                     )
 
             elif name == "close_camera":
+                try:
+                    if hasattr(self.ui, 'set_external_camera_provider'):
+                        self.ui.set_external_camera_provider(None)
+                except Exception:
+                    pass
                 self.ui.stop_camera_stream()
                 result = "Camera closed."
 
@@ -1400,12 +1463,19 @@ class JarvisLive:
                                     # Screen-only: no camera to close; release busy flag now
                                     self._vision_busy = False
                             elif self._vision_close_pending:
-                                # This turn_complete IS the vision answer — close camera + release busy flag
+                                # This turn_complete IS the vision answer — keep camera live for real-time interaction
+                                # Close after 25s of inactivity instead of 2s, so user can ask follow-ups while seeing live feed
                                 self._vision_close_pending = False
                                 self._vision_busy = False
                                 async def _cam_close():
-                                    await asyncio.sleep(2.0)
-                                    self.ui.stop_camera_stream()
+                                    await asyncio.sleep(25.0)
+                                    if not self._vision_busy and not self._vision_close_pending:
+                                        self.ui.stop_camera_stream()
+                                        try:
+                                            if hasattr(self.ui, 'set_external_camera_provider'):
+                                                self.ui.set_external_camera_provider(None)
+                                        except Exception:
+                                            pass
                                 asyncio.create_task(_cam_close())
 
                     if response.tool_call:
